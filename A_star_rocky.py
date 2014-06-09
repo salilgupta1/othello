@@ -103,7 +103,14 @@ class A_star_rocky:
 			self.place_piece(row,col,oppColor,playerColor)
 		
 		# Determine best move and and return value to Matchmaker
-		return self.abMax(playerColor,oppColor,float("-inf"),float("inf"),0)[0]
+		copy = self.copyBoard()
+		r,c,score = self.abMax(playerColor,oppColor,float("-inf"),float("inf"),5)
+		self.board = copy
+		if r == None or c == None:
+			r=-1
+			c=-1
+		self.place_piece(r,c,playerColor,oppColor)
+		return r,c
 		#return self.make_move(playerColor, oppColor)
 
 #sets all tiles along a given direction (Dir) from a given starting point (col and row) for a given distance
@@ -120,52 +127,75 @@ class A_star_rocky:
 	def copyBoard(self):
 		tempBoard = copy.deepcopy(self.board)
 		return tempBoard
-
+	def get_legal_moves(self,playerColor,oppColor):
+		row = []
+		col = []
+		for r in range(self.size):
+			for c in range(self.size):
+				if self.islegal(r,c,playerColor,oppColor):
+					row.append(r)
+					col.append(c)
+		return row,col
 	def abMax(self,playerColor, oppColor, a,b,depth):
 		bestScore = None
-		bestMove = None
-		for row in range(self.size):
-			for col in range(self.size):
-				if(self.islegal(row,col,playerColor,oppColor)):
-					tempBoard = self.copyBoard()
-					self.place_piece(row,col,playerColor,oppColor)
-					depth = depth + 1
-					if depth >=4:
-						score = self.evaluate(playerColor,oppColor)
-					else:
-						move, score = self.abMin(oppColor,playerColor,a,b,depth)
-					self.board = tempBoard
+		mrow=None
+		mcol = None
+		if depth == 0:
+			return mrow,mcol, self.evaluate(playerColor,oppColor)
+		legalRow,legalCol = self.get_legal_moves(playerColor,oppColor)
 
-					if bestScore == None or score > bestScore:
-						bestScore = score
-						bestMove = row, col
-					if bestScore >=b:
-						return bestMove,bestScore
-					a = max(a,bestScore)
-		return bestMove,bestScore
+		if not legalRow:
+			return mrow, mcol, self.evaluate(playerColor,oppColor)
+		else:
+			for i in range(len(legalRow)):
+				if (a>b):
+					break
+				tempBoard = self.copyBoard()
+				self.place_piece(legalRow[i],legalCol[i],playerColor,oppColor)
+				
+				if self.board_full():
+					score = self.evaluate(playerColor,oppColor)
+				else:
+					r,c, score = self.abMin(oppColor,playerColor,a,b,depth-1)
+				
+				self.board = tempBoard
+				if bestScore == None or score > bestScore:
+					bestScore = score
+					mrow,mcol = legalRow[i], legalCol[i]
+				if bestScore >=b:
+					return mrow,mcol,bestScore
+				a = max(a,bestScore)
+		return mrow,mcol,bestScore
 
 	def abMin(self,playerColor,oppColor,a,b,depth):
 		bestScore = None
-		bestMove = None
-		for row in range(self.size):
-			for col in range(self.size):
-				if(self.islegal(row,col,playerColor,oppColor)):
-					tempBoard = self.copyBoard()
-					self.place_piece(row,col,playerColor,oppColor)
-					depth = depth+1
-					if depth >=4:
-						score = self.evaluate(playerColor,oppColor)
-					else:
-						move, score = self.abMax(oppColor,playerColor,a,b,depth)
-					self.board = tempBoard
+		mrow = None
+		mcol= None
+		if depth == 0:
+			return mrow,mcol, self.evaluate(playerColor,oppColor)
+		legalRow,legalCol = self.get_legal_moves(playerColor,oppColor)
+		if not legalRow:
+			return mrow, mcol, self.evaluate(playerColor,oppColor)
+		else:
+			for i in range(len(legalRow)):
+				if (a>b):
+					break
+				tempBoard = self.copyBoard()
+				self.place_piece(legalRow[i],legalCol[i],playerColor,oppColor)
+				
+				if self.board_full():
+					score = self.evaluate(playerColor,oppColor)
+				else:
+					r,c, score = self.abMax(oppColor,playerColor,a,b,depth-1)
+				self.board = tempBoard
 
-					if bestScore== None or score <bestScore:
-						bestScore = score
-						bestMove = row, col
-					if bestScore<=a:
-						return bestMove,bestScore
-					b = min(b,bestScore)
-		return bestMove,bestScore
+				if bestScore == None or score < bestScore:
+					bestScore = score
+					mrow,mcol = legalRow[i], legalCol[i]
+				if bestScore <=a:
+					return mrow,mcol,bestScore
+				b = min(b,bestScore)
+		return mrow,mcol,bestScore
 
 	def evaluate(self,playerColor,oppColor):
 		legalMoves = self.countLegalMoves(playerColor,oppColor)
@@ -173,49 +203,71 @@ class A_star_rocky:
 		return legalMoves + corner
 
 	def countLegalMoves(self,playerColor,oppColor):
-		count = 0
+		countMax = 0
+		countMin =0
 		for row in range(self.size):
 			for col in range(self.size):
 				if(self.islegal(row,col,playerColor,oppColor)):
-					count +=1
-		return count
+					countMax +=1
+				if(self.islegal(row,col,oppColor,playerColor)):
+					countMin+=1
+		return 10*(countMax-countMin)
 
 	def countCorner(self,playerColor,oppColor):
-		count =0
+		countMax =0
+		countMin = 0
 		if self.board[0][0] == playerColor:
-			count+=1
+			countMax+=1
 		if self.board[7][0] == playerColor:
-			count+=1
+			countMax+=1
 		if self.board[7][7] == playerColor:
-			count+=1
+			countMax+=1
 		if self.board[0][7] == playerColor:
-			count+=1
-		return count*10
-#Search the game board for a legal move, and play the first one it finds
-	def make_move(self, playerColor, oppColor):
-		for row in range(self.size):
-			for col in range(self.size):
-				if(self.islegal(row,col,playerColor, oppColor)):
-					for Dir in self.directions:
-						#look across the length of the board to see if the neighboring squares are empty,
-						#held by the player, or held by the opponent
-						for i in range(self.size):
-							if  ((( row + i*Dir[0])<self.size)  and (( row + i*Dir[0])>=0 ) and (( col + i*Dir[1])>=0 ) and (( col + i*Dir[1])<self.size )):
-								#does the adjacent square in direction dir belong to the opponent?
-								if self.get_square(row+ i*Dir[0], col + i*Dir[1])!= oppColor and i==1 : # no
-									#no pieces will be flipped in this direction, so skip it
-									break
-								#yes the adjacent piece belonged to the opponent, now lets see if there are a chain
-								#of opponent pieces
-								if self.get_square(row+ i*Dir[0], col + i*Dir[1])==" " and i!=0 :
-									break
+			countMax+=1
 
-								#with one of player's pieces at the other end
-								if self.get_square(row+ i*Dir[0], col + i*Dir[1])==playerColor and i!=0 and i!=1 :
-									#set a flag so we know that the move was legal
-									legal = True
-									self.flip_tiles(row, col, Dir, i, playerColor)
-									break
-					return (row,col)
-		return (-1,-1)
+		if self.board[0][0] == oppColor:
+			countMin+=1
+		if self.board[7][0] == oppColor:
+			countMin+=1
+		if self.board[7][7] == oppColor:
+			countMin+=1
+		if self.board[0][7] == oppColor:
+			countMin+=1
+
+		return 100*(countMax-countMin)
+#Search the game board for a legal move, and play the first one it finds
+	# def make_move(self, playerColor, oppColor):
+	# 	for row in range(self.size):
+	# 		for col in range(self.size):
+	# 			if(self.islegal(row,col,playerColor, oppColor)):
+	# 				for Dir in self.directions:
+	# 					#look across the length of the board to see if the neighboring squares are empty,
+	# 					#held by the player, or held by the opponent
+	# 					for i in range(self.size):
+	# 						if  ((( row + i*Dir[0])<self.size)  and (( row + i*Dir[0])>=0 ) and (( col + i*Dir[1])>=0 ) and (( col + i*Dir[1])<self.size )):
+	# 							#does the adjacent square in direction dir belong to the opponent?
+	# 							if self.get_square(row+ i*Dir[0], col + i*Dir[1])!= oppColor and i==1 : # no
+	# 								#no pieces will be flipped in this direction, so skip it
+	# 								break
+	# 							#yes the adjacent piece belonged to the opponent, now lets see if there are a chain
+	# 							#of opponent pieces
+	# 							if self.get_square(row+ i*Dir[0], col + i*Dir[1])==" " and i!=0 :
+	# 								break
+
+	# 							#with one of player's pieces at the other end
+	# 							if self.get_square(row+ i*Dir[0], col + i*Dir[1])==playerColor and i!=0 and i!=1 :
+	# 								#set a flag so we know that the move was legal
+	# 								legal = True
+	# 								self.flip_tiles(row, col, Dir, i, playerColor)
+	# 								break
+	# 				return (row,col)
+	# 	return (-1,-1)
+
+	def board_full(self):
+		for i in range(self.size):
+			for j in range(self.size):
+				if self.get_square(i,j)==" ":
+					return False
+		return True
+
 
