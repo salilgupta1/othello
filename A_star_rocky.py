@@ -104,7 +104,7 @@ class A_star_rocky:
 		
 		# Determine best move and and return value to Matchmaker
 		copy = self.copyBoard()
-		r,c,score = self.abMax(playerColor,oppColor,float("-inf"),float("inf"),5)
+		r,c,score = self.abMax(playerColor,oppColor,float("-inf"),float("inf"),4)
 		self.board = copy
 		if r == None or c == None:
 			r=-1
